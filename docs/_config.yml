@@ -1,0 +1,8 @@
+# GitHub Pages configuration
+title: Linux On-Prem Webserver Tools
+description: AI-powered inventory management, real-time monitoring, and automated diagnostics for Linux infrastructure.
+theme: jekyll-theme-minimal
+show_downloads: true
+github:
+  is_project_page: true
+

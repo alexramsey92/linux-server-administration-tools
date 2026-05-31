@@ -1,0 +1,222 @@
+<?php
+
+namespace App\Livewire;
+
+use App\Services\Generation\HTMLGenerator;
+use App\Services\Generation\StyleLevelManager;
+use Illuminate\Support\Facades\Log;
+use Livewire\Component;
+
+class GeneratorWorkbench extends Component
+{
+    public string $prompt = '';
+
+    public string $styleLevel = 'low';
+
+    public string $pageType = 'landing';
+
+    public int $maxTokens = 1024;
+
+    public string $generatedHtml = '';
+
+    public bool $isGenerating = false;
+
+    public ?string $error = null;
+
+    public bool $showPreview = false;
+
+    public bool $hasDraft = false;
+
+    public ?array $claudeService = null;
+
+    public string $byokApiKey = '';
+
+    public array $tokenOptions = [
+        512 => 'Very Short (512 tokens) - Hero',
+        1024 => 'Short (1K tokens) - Hero + Content',
+        2048 => 'Medium (2K tokens) - Hero + Content + Features',
+        4096 => 'Standard (4K tokens) - Full Page',
+        8192 => 'Long (8K tokens) - Extended Content',
+    ];
+
+    public array $examplePrompts = [
+        'A small business landing page for a custom woodworking shop specializing in handmade furniture in Seattle WA',
+        'A plant-based meal prep service delivering fresh, chef-crafted meals across Austin TX',
+        'A lawncare company with services including mowing, trimming, leaf collection for Raleigh NC',
+        'A personal portfolio website for a freelance graphic designer showcasing their work and services',
+        'A blog homepage for a travel blogger sharing tips, guides, and stories from around the world',
+        'A product page for a new smartwatch highlighting its features, specifications, and pricing',
+        'A business website for a boutique digital marketing agency offering SEO, social media, and content creation services',
+        'A landing page for a mobile app that helps users track their wellness goals and progress',
+    ];
+
+    protected $rules = [
+        'prompt' => 'required|min:10|max:1000|string',
+        'styleLevel' => 'required|in:full,mid,low',
+        'pageType' => 'required|in:landing,business,portfolio,blog',
+        'maxTokens' => 'required|integer|in:512,1024,2048,4096,8192',
+        'byokApiKey' => 'nullable|string|min:20|max:200',
+    ];
+
+    public function mount(): void
+    {
+        if (config('mcp.byok.session_enabled')) {
+            $this->byokApiKey = (string) session('byok.anthropic_api_key', '');
+        }
+    }
+
+    public function generate(): void
+    {
+        // Increase PHP execution time for AI generation
+        set_time_limit(120);
+
+        $this->validate();
+
+        if (config('mcp.byok.session_enabled')) {
+            if (trim($this->byokApiKey) !== '') {
+                session(['byok.anthropic_api_key' => $this->byokApiKey]);
+            } else {
+                session()->forget('byok.anthropic_api_key');
+            }
+        }
+
+        $this->isGenerating = true;
+        $this->error = null;
+        $this->generatedHtml = '';
+
+        // Dispatch event to start timer
+        $this->dispatch('generate-started');
+
+        // Allow UI to update before blocking call
+        $this->dispatch('$refresh');
+
+        try {
+            $generator = app(HTMLGenerator::class);
+
+            $options = [
+                'prompt' => $this->prompt,
+                'style_level' => $this->styleLevel,
+                'use_semantic' => true,
+                'max_tokens' => $this->maxTokens,
+            ];
+
+            $byokApiKey = $this->getByokApiKey();
+            if ($byokApiKey) {
+                $options['api_key'] = $byokApiKey;
+            }
+
+            $this->generatedHtml = $generator->generate($this->pageType, $options);
+
+            $this->showPreview = true;
+            
+            // Update session immediately for preview
+            session(['preview_html' => $this->generatedHtml]);
+
+            // Capture Claude/Anthropic metadata if available
+            try {
+                $this->claudeService = $generator->getLastAnthropicInfo();
+            } catch (\Throwable $e) {
+                $this->claudeService = null;
+            }
+
+            // Dispatch event for Monaco Editor
+            $this->dispatch('html-generated', html: $this->generatedHtml);
+
+        } catch (\Exception $e) {
+            Log::error('HTML Generation failed', [
+                'error' => $e->getMessage(),
+                'prompt' => $this->prompt,
+            ]);
+
+            $this->error = 'Generation failed: '.$e->getMessage();
+        } finally {
+            $this->isGenerating = false;
+            $this->dispatch('generate-finished');
+        }
+    }
+
+    public function clear(): void
+    {
+        $this->reset(['generatedHtml', 'error', 'showPreview']);
+        session()->forget('preview_html');
+        $this->dispatch('clear-draft');
+    }
+
+    public function loadDraft(string $html): void
+    {
+        $this->generatedHtml = $html;
+        $this->showPreview = true;
+        $this->hasDraft = true;
+
+        // Notify the browser so the client can update the editor immediately
+        $this->dispatch('workbench-draft-restored', html: $html);
+    }
+
+    public function clearDraft(): void
+    {
+        $this->hasDraft = false;
+    }
+
+    /**
+     * Handle unexpected toJSON calls from Livewire client-side serialization.
+     * Some browser-side code may call toJSON during proxy collapse; handle gracefully.
+     */
+    public function toJSON($payload = null): array
+    {
+        Log::info('GeneratorWorkbench::toJSON called', ['payload' => $payload]);
+
+        // Return a safe, empty payload so Livewire requests don't 500
+        return ['ok' => true];
+    }
+
+    public function refreshPreview(): void
+    {
+        // Update session and dispatch event to force iframe reload
+        session(['preview_html' => $this->generatedHtml]);
+        $this->dispatch('force-preview-refresh');
+    }
+
+    public function getPreviewUrl(): string
+    {
+        // Store HTML in session to avoid 414 URI Too Long errors
+        session(['preview_html' => $this->generatedHtml]);
+
+        return route('content.show').'?t='.time();
+    }
+
+    public function useExample(): void
+    {
+        $this->prompt = $this->examplePrompts[array_rand($this->examplePrompts)];
+    }
+
+    public function render()
+    {
+        $styleLevelManager = app(StyleLevelManager::class);
+        $styleLevels = [];
+
+        foreach ($styleLevelManager->all() as $level => $info) {
+            $classes = $styleLevelManager->getFlattenedClasses($level);
+            $styleLevels[$level] = [
+                'name' => $info['name'],
+                'description' => $info['description'],
+                'classes_count' => count($classes),
+            ];
+        }
+
+        return view('livewire.generator-workbench', [
+            'styleLevels' => $styleLevels,
+            'examplePrompts' => $this->examplePrompts,
+        ]);
+    }
+
+    protected function getByokApiKey(): ?string
+    {
+        if (! config('mcp.byok.session_enabled')) {
+            return null;
+        }
+
+        $key = trim($this->byokApiKey ?: (string) session('byok.anthropic_api_key', ''));
+
+        return $key !== '' ? $key : null;
+    }
+}

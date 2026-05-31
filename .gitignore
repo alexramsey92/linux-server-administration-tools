@@ -1,0 +1,47 @@
+# WARNING 
+# GIT DOES NOT IGNORE FILES ALREADY TRACKED
+# TO STOP TRACKING A FILE, USE: git rm --cached <file>
+/.fleet
+/.idea
+/.vscode
+/node_modules
+/public/build
+/public/hot
+/public/storage
+!/public/index.php
+/storage/*.key
+/storage/database/
+/storage/database/*.sqlite
+storage/database/database.sqlite
+*.sqlite
+*.sqlite3
+.sqlite
+.sqlite3
+/storage/framework/cache
+/storage/framework/sessions
+/storage/framework/views
+/storage/logs/*
+!/storage/logs/.gitkeep
+/vendor
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+/.nova
+/.vagrant
+.phpstorm.meta.php
+_ide_helper.php
+_ide_helper_models.php
+.DS_Store
+Thumbs.db
+.mcp.json
+CLAUDE.md
+AGENTS.md
+junie/
+boost.json
+.sqlite
