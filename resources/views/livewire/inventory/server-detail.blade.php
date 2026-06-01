@@ -258,36 +258,23 @@
     <div class="bg-white dark:bg-slate-900 rounded-lg shadow-md p-6">
         <h2 class="text-xl font-bold mb-4 text-slate-900 dark:text-white">Machine Notes</h2>
         <div class="space-y-4">
-            @forelse($applications as $note)
+            @forelse($applications as $app)
                 <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded">
-                    <p class="text-sm text-slate-600 dark:text-slate-400">{{ $note['author'] }} • {{ \Carbon\Carbon::parse($note['created_at'])->diffForHumans() }}</p>
-                    <p class="text-slate-900 dark:text-white">{{ $note['content'] }}</p>
+                    <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ $app['name'] }}</p>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                        <span class="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded">{{ $app['type'] ?? 'other' }}</span>
+                        <span class="ml-2">v{{ $app['version'] ?? 'unknown' }}</span>
+                        <span class="ml-2 font-medium {{ $app['status'] === 'running' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">{{ ucfirst($app['status']) }}</span>
+                    </p>
+                    @if($app['port'])
+                        <p class="text-xs text-slate-600 dark:text-slate-400 mt-1">Port: {{ $app['port'] }}</p>
+                    @endif
                 </div>
             @empty
-                <p class="text-sm text-slate-600 dark:text-slate-400">No notes found for this machine.</p>
+                <p class="text-sm text-slate-600 dark:text-slate-400">No applications found for this machine.</p>
             @endforelse
         </div>
     </div>      
-
-
-    <!-- Team Chat so that Team members can post chat messages about this host
-        and can provide updates on maintenance, issues, or general notes. -->
-
-    <div class="bg-white dark:bg-slate-900 rounded-lg shadow-md p-6">
-        <h2 class="text-xl font-bold mb-4 text-slate-900 dark:text-white">Team Chat</h2>
-        <div class="space-y-4">
-            @forelse($applications as $chat)
-                <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded">
-                    <p class="text-sm text-slate-600 dark:text-slate-400">{{ $chat['author'] }} • {{ \Carbon\Carbon::parse($chat['created_at'])->diffForHumans() }}</p>
-                    <p class="text-slate-900 dark:text-white">{{ $chat['message'] }}</p>
-                </div>
-            @empty        
-                <p class="text-sm text-slate-600 dark:text-slate-400">No chat messages found for this machine.</p>
-            @endforelse
-        </div>
-    </div>          
-
-
     <!-- Services and Stakeholders -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white dark:bg-slate-900 rounded-lg shadow-md p-6">
